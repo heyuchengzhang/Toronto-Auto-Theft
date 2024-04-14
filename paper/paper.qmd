@@ -1,221 +1,432 @@
 ---
-title: "Toronto-Auto-Theft"
-subtitle: "My subtitle if needed"
+title: "Mapping and Modeling Auto Theft Trends in Toronto for Strategic Urban Crime Prevention"
+subtitle: "An Analysis of 2014-2023 Toronto Auto Theft Open Data"
 author: "Heyucheng Zhang"
-thanks: "Code and data are available at: https://github.com/heyuchengzhang/Toronto-Auto-Theft."
-date: today
+thanks: "Code and data are available at: https://github.com/heyuchengzhang/Toronto-Auto-Theft. Shiny Web App is available at: https://79muet-heyucheng-zhang.shinyapps.io/Toronto-Auto-Theft-Data-Explorer/."
+date: 14 April 2024
 date-format: long
-abstract: "About Toronto-Auto-Theft. First sentence. Second sentence. Third sentence. Fourth sentence."
+abstract: "This study analyzes auto theft incidents in Toronto using publicly available data, mapping out the prevalence of thefts across neighborhoods and identifying temporal trends. Our findings indicate that certain areas experience consistently higher rates of theft, with predictive modeling suggesting an upward trend in incidents. These findings are pivotal for shaping effective policies and law enforcement tactics to curb urban auto theft, thereby bolstering community safety and awareness."
 format: pdf
+toc: true
 number-sections: true
 bibliography: references.bib
 ---
 
 ```{r}
-#| include: false
-#| warning: false
 #| message: false
+#| echo: false
+#| warning: false
+#### Workspace set up ####
+# install.packages("tidyverse")
+# install.packages("knitr")
+# install.packages("here")
+# install.packages("janitor")
+# install.packages("kableExtra")
+# install.packages("arrow")
+# install.packages("sf")
+# install.packages("modelsummary")
+# install.packages("broom")
 
-library(tidyverse)
-library(palmerpenguins)
+library(tidyverse) # data-related packages
+library(knitr) # make tables
+library(here) # manage file paths
+library(janitor) # clean data
+library(kableExtra) # table-related packages
+library(arrow) # read data
+library(sf) # read data
+library(modelsummary) # model summary
+library(broom) # convert data
+
+#### Read in cleaned data ####
+cleaned_data <- read_parquet(here("data/analysis_data/cleaned_data.parquet"))
+neighbourhood_counts <- read_parquet(here("data/analysis_data/neighbourhood_counts.parquet"))
+theft_counts_per_year <- read_parquet(here("data/analysis_data/theft_counts_per_year.parquet"))
+monthly_counts <- read_parquet(here("data/analysis_data/monthly_counts.parquet"))
+toronto_map <- st_read(here("data/raw_data/toronto_map_data.geojson"), quiet = TRUE)
+theft_locations <- st_read(here("data/analysis_data/theft_locations.geojson"), quiet = TRUE)
+model <- readRDS(here("models/model.rds"))
 ```
-
 
 # Introduction
 
-About Toronto-Auto-Theft.
+A subtle undercurrent of crime continues to exist in Toronto's bustling metropolis, taking the form of auto theft, a scourge that plagues neighborhoods and poses a challenge to law enforcement. Our study provides a statistical and spatial exploration that spans several years to reveal the ebbs and flows of automobile theft. It is motivated by the urgent need to comprehend and combat this illicit activity.
 
-You can and should cross-reference sections and sub-sections. We use @citeR.
+Our research goes beyond being an academic study because it provides insights and predictions into the trends of auto theft using extensive publicly accessible data. We have used advanced statistical techniques and geographic information systems within the versatile R framework to map an area with high-theft zones and temporal activity peaks. This detailed portrayal reveals the trends that obscure the communities that pose a threat and provides the ability to predict what will happen next.
 
-The remainder of this paper is structured as follows. @sec-data....
+The estimand in our study is dual-natured: we aim to estimate both the cumulative auto theft incidents in each of Toronto's neighborhoods over a decade and the city-wide annual totals. We were able to pinpoint the neighborhoods most affected by this crime wave through careful analysis, which made it clear that specific measures were required. The results went even further, illustrating not just the current situation but even the days ahead, suggesting that if action is not taken, auto thefts may increase in the future. This foresight serves as a clarion call for policymakers and law enforcement, urging the adoption of data-driven strategies and community-centric approaches to dampen the tides of theft and secure the peace of Toronto's streets. Our study has multiple benefits: it not only closes the empirical gap on Toronto's auto theft trends but also serves as a benchmark for the development of public policy and crime prevention strategies. We provide a thorough narrative that places our approach, conclusions, and their ramifications in the larger framework of public welfare and urban safety.
 
+This paper is structured to walk the reader through our comprehensive study, starting with an in-depth look at the data sources, methodology and measurement in Section 2, followed by the statistical models and their justifications in Section 3. We then present our results, providing a granular analysis of neighborhood-specific trends and spatial distributions in Section 4. The discussion in Section 5 synthesizes our insights, contextualizes the study within the broader spectrum of crime analysis, acknowledges the limitations of our approach, and charts a course for future exploration.
 
+# Data
 
-# Data {#sec-data}
+## Methodology
 
-Some of our data is of penguins (@fig-bills), from @palmerpenguins.
+In our analysis of Toronto auto theft incidents, we utilized the R programming language [@citeR] and essential packages from the tidyverse [@tidyverse], specifically dplyr [@dplyr] and tibble [@tibble], for efficient data manipulation. The janitor package [@janitor] facilitated data cleaning by tidying variable names and removing duplicates. For visualizations, we employed ggplot2 [@ggplot] to create insightful graphics, and kableExtra [@kableextra] for stylized data tables. The here package [@here] was crucial for managing file paths and ensuring reproducibility, particularly important in projects involving multiple data sources.
+
+Spatial analyses were conducted using the sf package [@sf], enhancing our maps with precise data from Toronto’s Open Data portal via the opendatatoronto package [@opendatatoronto]. Statistical results were efficiently formatted with modelsummary [@modelsummary] and broom [@broom] packages. Our primary dataset was sourced from the Toronto Police Service’s open data [@autotheftopendata], processed using the arrow package [@arrow] for its rapid data import capabilities.
+
+## Dataset Sources
+
+### Auto Theft Open Data
+
+Auto Theft Open Data [@autotheftopendata]: Obtained from the Toronto Police Service, this dataset contains detailed records of auto theft incidents, including the date of the incident (REPORT_DATE), the neighborhood identifier (NEIGHBOURHOOD_158), and precise geographical coordinates (LONG_WGS84, LAT_WGS84). This dataset facilitates a detailed examination of auto theft patterns both temporally and spatially.
+
+### Toronto Ward Profiles
+
+Toronto Ward Profiles [@wardprofiles]: Published by City Planning through Open Data Toronto, the Ward Profiles provide comprehensive mapping data for Toronto. This resource was instrumental in obtaining high-resolution maps of Toronto, which served as a backdrop for plotting the geographical coordinates of auto theft incidents. The availability of such detailed and open geographic data enables an enriched spatial analysis, allowing for the precise marking of theft locations on the map.
+
+## Data Preparation and Data Selection Justification
+
+Following the acquisition, the auto theft incident data underwent a process of cleaning and preparation. A focused dataset, cleaned_data, was created by selecting essential variables and excluding unnecessary ones. @tbl-dataset forms the foundation for our analysis.
 
 ```{r}
-#| label: fig-bills
-#| fig-cap: Bills of penguins
 #| echo: false
-
-ggplot(penguins, aes(x = island, fill = species)) +
-  geom_bar(alpha = 0.8) +
-  scale_fill_manual(values = c("darkorange","purple","cyan4"),
-                    guide = "none") +
-  theme_minimal() +
-  facet_wrap(~species, ncol = 1) +
-  coord_flip()
-```
-
-Talk more about it.
-
-And also planes (@fig-planes). (You can change the height and width, but don't worry about doing that until you have finished every other aspect of the paper - Quarto will try to make it look nice and the defaults usually work well once you have enough text.)
-
-```{r}
-#| label: fig-planes
-#| fig-cap: Relationship between wing length and width
-#| echo: false
-#| warning: false
 #| message: false
+#| warning: false
+#| label: tbl-dataset
+#| tbl-cap: Sample of Cleaned Data
 
-analysis_data <- read_csv(here::here("data/analysis_data/analysis_data.csv"))
-
-analysis_data |> 
-  ggplot(aes(x = width, y = length)) +
-  geom_point(alpha = 0.8) +
-  theme_minimal() +
-  labs(x = "Wing width (mm)",
-       y = "Wing length (mm)")
+kable(head(cleaned_data, 10), format = "latex", booktabs = TRUE, align = "c") |>
+  kable_styling(latex_options = c("striped", "scale_down", "hold_position"), full_width = FALSE)
 ```
 
-Talk way more about it. 
+Through cleaned_data, we explore the variables of REPORT_DATE, NEIGHBOURHOOD_158, LONG_WGS84, and LAT_WGS84. Each plays a crucial role in understanding the dynamics of auto theft in Toronto, allowing for temporal trends and spatial distribution analysis. The incorporation of Toronto's ward maps enhances this spatial analysis by providing a detailed geographic context. Initial exploration of the dataset reveals key insights into the pattern and distribution of auto theft across Toronto's neighborhoods. Summary statistics and visualizations derived from the data provide a preliminary understanding of the auto theft landscape, identifying areas with higher incidents and potential temporal patterns.
 
+The chosen datasets provide a comprehensive and granular view of auto theft incidents, offering both the specificity of individual events and the broader geographic context necessary for a detailed spatial analysis. The choice of Open Data Toronto's ward profiles as a mapping source ensures that our spatial visualizations are grounded in accurate and city-sanctioned geographic data. This study intends to identify patterns and trends in auto theft in Toronto by utilizing precise mapping tools and comprehensive historical information. The findings could provide insights that could influence policy and aid in the creation of focused efforts to reduce such crimes.
 
+## Measurement
+
+In our study on auto theft incidents in Toronto, we meticulously navigated the complex terrain of measurement, akin to the nuanced challenges highlighted across various domains of research. The dataset, sourced from the Toronto Police Service, provides a comprehensive account of auto theft incidents, encoding each event within specific spatial and temporal dimensions through variables such as REPORT_DATE, NEIGHBOURHOOD_158, LONG_WGS84, and LAT_WGS84. Similar to how historical developments in measurement instruments, such as microscopes and atomic clocks, have transformed our understanding in domains ranging from biology to physics, this granularity allows us to analyze temporal trends and spatial distributions. However, there were inherent difficulties in using these variables to capture the essence of auto theft. These difficulties reflect larger measurement problems, such as the need to balance the richness of reality in quantitative research with the accuracy of identifying phenomena and operational simplicity.
+
+To ensure the integrity and analytical robustness of our dataset, rigorous cleaning and preparation were undertaken, focusing on variables critical to our study's objectives. This process mirrors the meticulous consideration essential in measurement, aiming to distill complex information into a coherent form for analysis. Much like the careful selection of units and the evolution of measurement definitions that have underpinned scientific advancements, our methodical approach to dataset preparation seeks to provide a reliable foundation for exploring auto theft patterns. Through this, our study not only contributes to the quantitative analysis of crime but also engages with the broader discourse on the challenges and considerations inherent in the measurement, underlining our commitment to capturing the multifaceted nature of auto theft incidents in Toronto.
 
 # Model
 
-The goal of our modelling strategy is twofold. Firstly,...
+## Model Set-up
 
-Here we briefly describe the Bayesian analysis model used to investigate... Background details and diagnostics are included in [Appendix -@sec-model-details].
+Through our data analysis, we identified a significant relationship between time and the number of auto theft incidents in Toronto. To explore this relationship further and predict future trends in auto thefts, we constructed a linear regression model.
 
-## Model set-up
+We formalize the model as follows:
 
-Define $y_i$ as the number of seconds that the plane remained aloft. Then $\beta_i$ is the wing width and $\gamma_i$ is the wing length, both measured in millimeters.  
+```{=tex}
+\begin{equation}
+Y_{i} = \beta_{0}+\beta_{1}Time\_Index_{i}
+\end{equation}
+```
+In Model:
 
-\begin{align} 
-y_i|\mu_i, \sigma &\sim \mbox{Normal}(\mu_i, \sigma) \\
-\mu_i &= \alpha + \beta_i + \gamma_i\\
-\alpha &\sim \mbox{Normal}(0, 2.5) \\
-\beta &\sim \mbox{Normal}(0, 2.5) \\
-\gamma &\sim \mbox{Normal}(0, 2.5) \\
-\sigma &\sim \mbox{Exponential}(1)
-\end{align}
+-   $Y_{i}$ represents the number of auto theft incidents at time index $i$.
+-   $\beta_{0}$ is the intercept, indicating the estimated number of thefts at the starting point of our time index.
+-   $\beta_{1}$ is the coefficient for the time index, capturing the rate of change in the number of thefts over time.
 
-We run the model in R [@citeR] using the `rstanarm` package of @rstanarm. We use the default priors from `rstanarm`.
+The independent variable in our model is the Time_Index, which is a numerical representation of time, enabling us to examine how theft incidents evolve. The dependent variable is the Thefts, denoting the number of auto thefts recorded.
+
+### Model Justification
+
+The rationale behind using a linear regression model stems from the initial analysis, suggesting a linear trend in the increase or decrease of auto theft incidents over time. Given the straightforward relationship between time and the occurrence of these incidents, a linear model provides a clear and interpretable way to quantify and predict changes in auto theft rates. What's more, the linear model's simplicity makes it an attractive choice for initial investigations into time series data, allowing for straightforward interpretation and application of results. By examining the coefficient associated with the Time_Index, we can assess whether there's a general increase or decrease in theft incidents and at what rate these changes are happening.
+
+Before constructing the model, we analyzed the distribution and trend of auto theft incidents using historical data. Our preliminary findings indicated a potential linear relationship between time and the number of incidents, justifying the selection of a linear regression model for further analysis. Our goal is to use the linear regression model to acquire a better understanding of the patterns of auto theft in Toronto. This understanding will serve as a foundation for future research, the creation of policies, and the implementation of anti-auto theft measures. The use of a linear model is further justified by its simplicity of interpretation and the correlation it establishes between time and auto theft incidents, which makes it a useful instrument for identifying and forecasting patterns in urban crime.
+
+## Model Prediction
+
+Following the construction and validation of our linear regression model, which estimates the number of auto theft incidents in Toronto as a function of time, we proceeded to forecast auto theft incidents for the upcoming 12 months. This predictive exercise aims to provide insights into future trends in auto theft, potentially guiding policy and resource allocation for crime prevention.
+
+Using the established linear model:
+
+```{=tex}
+\begin{equation}
+Y_{i} = \beta_{0}+\beta_{1}Time\_Index_{i}
+\end{equation}
+```
+we extended our Time_Index beyond the current dataset to predict theft incidents for the next year. The Time_Index was incremented by 12 months, representing our forecast horizon.
+
+### Predictive Insights
+
+The resulting predictions, juxtaposed against observed data, offer a compelling visualization of the expected trend in auto theft incidents. In @fig-prediction, observed theft incidents up to the present are marked in black, while our model's predictions for the future 12 months are highlighted in red.
+
+```{r fig.width=6, fig.height=3}
+#| echo: false
+#| message: false
+#| warning: false
+#| label: fig-prediction
+#| fig-cap: Auto Theft Predictions
+
+# Predict the next 12 months
+monthly_counts$Time_Index <- 1:nrow(monthly_counts)
+future_time_index <- data.frame(Time_Index = (max(monthly_counts$Time_Index) + 1):(max(monthly_counts$Time_Index) + 12))
+predictions <- predict(model, newdata = future_time_index)
+combined_data <- rbind(data.frame(Time_Index = monthly_counts$Time_Index, Thefts = monthly_counts$Thefts, Type = "Observed"),
+                       data.frame(Time_Index = (max(monthly_counts$Time_Index) + 1):(max(monthly_counts$Time_Index) + 12), Thefts = predictions, Type = "Predicted"))
 
 
-### Model justification
+ggplot(combined_data, aes(x = Time_Index, y = Thefts, color = Type, group = Type)) +
+  geom_line() +
+  geom_point(data = combined_data[combined_data$Type == "Observed", ], shape = 16, size = 2) +
+  labs(x = "Time Index", y = "Total Thefts", title = "Auto Theft Predictions") +
+  scale_color_manual(values = c("Observed" = "black", "Predicted" = "red")) +
+  theme_minimal() +
+  theme(legend.position = "top") + 
+  theme(plot.title = element_text(hjust = 0.5))
 
-We expect a positive relationship between the size of the wings and time spent aloft. In particular...
+```
 
-We can use maths by including latex between dollar signs, for instance $\theta$.
+The linear model predicts that the current trend will continue into the near future as is shown. Even though the model is predicated on a linear sequence of events, it is crucial to recognize the possible influence of additional factors that the model does not account for and which might affect actual future theft rates.
 
+### Implications for Policy and Prevention
+
+The predictive model underscores the necessity for proactive measures in addressing auto theft. By anticipating future incidents, policymakers and law enforcement agencies can better allocate resources, design targeted interventions, and implement preventive strategies aimed at curbing auto theft rates.
+
+It is also crucial to continuously refine the predictive model with updated data and potentially integrate more variables that could affect auto theft trends. Such iterative improvements will enhance the accuracy of future forecasts and, consequently, the effectiveness of preventive measures. This predictive analysis represents a foundational step towards a data-driven approach in combatting auto theft, highlighting the value of statistical models in informing and guiding public safety strategies.
 
 # Results
 
-Our results are summarized in @tbl-modelresults.
+Our thorough investigation into auto theft incidents throughout Toronto produced a wealth of information, which is presented in a series of tables and figures to give an in-depth understanding of the patterns and trends in auto theft in the city.
+
+## Neighborhood-Specific Trends
+
+@tbl-neighbourhood_counts showcases the distribution of auto thefts across various neighborhoods, indicating a significant variance in incident counts. West Humber-Clairville stands out with the highest number of recorded thefts, suggesting a targeted area for policy intervention and community safety initiatives.
 
 ```{r}
-#| echo: false
-#| eval: true
-#| warning: false
-#| message: false
-
-library(rstanarm)
-
-first_model <-
-  readRDS(file = here::here("models/first_model.rds"))
-```
-
-```{r}
-#| echo: false
-#| eval: true
-#| label: tbl-modelresults
-#| tbl-cap: "Explanatory models of flight time based on wing width and wing length"
-#| warning: false
-
-modelsummary::modelsummary(
-  list(
-    "First model" = first_model
-  ),
-  statistic = "mad",
-  fmt = 2
-)
-```
-
-
-
-
-# Discussion
-
-## First discussion point {#sec-first-point}
-
-If my paper were 10 pages, then should be be at least 2.5 pages. The discussion is a chance to show off what you know and what you learnt from all this. 
-
-## Second discussion point
-
-## Third discussion point
-
-## Weaknesses and next steps
-
-Weaknesses and next steps should also be included.
-
-\newpage
-
-\appendix
-
-# Appendix {-}
-
-
-# Additional data details
-
-# Model details {#sec-model-details}
-
-## Posterior predictive check
-
-In @fig-ppcheckandposteriorvsprior-1 we implement a posterior predictive check. This shows...
-
-In @fig-ppcheckandposteriorvsprior-2 we compare the posterior with the prior. This shows... 
-
-```{r}
-#| eval: true
 #| echo: false
 #| message: false
 #| warning: false
-#| label: fig-ppcheckandposteriorvsprior
-#| layout-ncol: 2
-#| fig-cap: "Examining how the model fits, and is affected by, the data"
-#| fig-subcap: ["Posterior prediction check", "Comparing the posterior with the prior"]
+#| label: tbl-neighbourhood_counts
+#| tbl-cap: Sample of Neighbourhood Counts
 
-pp_check(first_model) +
-  theme_classic() +
-  theme(legend.position = "bottom")
+kable(head(neighbourhood_counts, 10), format = "latex", booktabs = TRUE, align = "c") |>
+  kable_styling(latex_options = c("striped", "scale_down", "hold_position"), full_width = FALSE, font_size = 8)
+```
 
-posterior_vs_prior(first_model) +
+In @fig-neighbourhood, we present a bar chart detailing the top 10 neighborhoods with the highest counts of auto thefts. This visualization not only prioritizes areas for crime prevention strategies but also may prompt further investigation into the socio-economic and environmental factors prevalent in these neighborhoods.
+
+```{r fig.width=10, fig.height=5}
+#| echo: false
+#| message: false
+#| warning: false
+#| label: fig-neighbourhood
+#| fig-cap: Top 10 Toronto Neighborhoods with the Highest Auto Theft Counts
+ggplot(head(neighbourhood_counts, 10), aes(x = reorder(NEIGHBOURHOOD_158, Count), y = Count, fill = Count)) +
+  geom_bar(stat = "identity") +
+  scale_fill_gradient(low = "#ADD8E6", high = "#000080") +
   theme_minimal() +
-  scale_color_brewer(palette = "Set1") +
-  theme(legend.position = "bottom") +
+  labs(title = "Top 10 Toronto Neighborhoods with the Highest Auto Theft Counts",
+       x = "Neighbourhood",
+       y = "Theft Counts",
+       caption = "Source: Toronto Auto Theft Open Data") +
   coord_flip()
 ```
 
-## Diagnostics
+## Annual Theft Evolution
 
-@fig-stanareyouokay-1 is a trace plot. It shows... This suggests...
-
-@fig-stanareyouokay-2 is a Rhat plot. It shows... This suggests...
+In @tbl-theft_counts_per_year, we reveal the annual progression of auto thefts from 2014 through 2023. There is an evident increase in incidents over the years, with a notable surge in recent years. This uptick raises concerns about the factors contributing to the rise and underscores the need for enhanced security measures.
 
 ```{r}
 #| echo: false
-#| eval: true
 #| message: false
 #| warning: false
-#| label: fig-stanareyouokay
-#| fig-cap: "Checking the convergence of the MCMC algorithm"
-#| fig-subcap: ["Trace plot", "Rhat plot"]
-#| layout-ncol: 2
+#| label: tbl-theft_counts_per_year
+#| tbl-cap: Sample of Theft Counts Per Year
 
-plot(first_model, "trace")
-
-plot(first_model, "rhat")
+kable(theft_counts_per_year, format = "latex", booktabs = TRUE, align = "c") |>
+  kable_styling(latex_options = c("striped", "scale_down", "hold_position"), full_width = FALSE, font_size = 8)
 ```
 
 
+@fig-thefts-per-year displays the total auto thefts per year, complemented by a smooth trend line that underscores the steady increase in thefts over the examined period. The predictive model applied to this trend suggests that if current patterns hold, the upward trajectory of auto thefts is likely to continue.
 
-\newpage
+```{r fig.width=8, fig.height=4}
+#| echo: false
+#| message: false
+#| warning: false
+#| label: fig-thefts-per-year
+#| fig-cap: Total Auto Thefts Per Year in Toronto (2014-2023)
 
+ggplot(theft_counts_per_year, aes(x = REPORT_YEAR, y = Total_Thefts)) +
+  geom_line(color = "blue", size = 1, alpha = 0.8) +
+  geom_point(color = "#FF2800", size = 2, alpha = 0.8, shape = 16) +
+  geom_smooth(method = "loess", color = "darkgreen", linetype = "dashed", fill = "#98FF98", alpha = 0.3) +
+  theme_minimal() +
+  labs(title = "Total Auto Thefts Per Year in Toronto (2014-2023)",
+       x = "Year",
+       y = "Total Thefts",
+       caption = "Source: Toronto Auto Theft Open Data") +
+  scale_x_continuous(breaks = seq(2014, 2023, by = 1)) +
+  scale_y_continuous(labels = scales::comma_format()) +
+  theme(plot.title = element_text(size = 16, face = "bold"),
+        axis.title = element_text(size = 12), 
+        axis.text = element_text(size = 10))
+
+```
+
+
+## Geospatial Analysis
+
+The geographical dispersion of auto thefts is visually represented in @fig-theft-map, where we plot the latitude and longitude of reported incidents onto a map of Toronto. This map is critical for understanding the spatial context of auto theft, highlighting neighborhoods with dense clusters of incidents and potentially guiding the allocation of policing resources.
+
+```{r fig.width=12, fig.height=6}
+#| echo: false
+#| message: false
+#| warning: false
+#| label: fig-theft-map
+#| fig-cap: Toronto Auto Theft Locations
+ggplot() +
+  geom_sf(data = toronto_map, fill = "#ADD8F0", color = "#4B0082") +
+  geom_sf(data = theft_locations, color = "#FF2800", size = 0.06, alpha = 0.2) +
+  ggtitle("Toronto Auto Theft Locations") +
+  theme_minimal() + 
+  labs(x = "Longitude", y = "Latitude",caption = "Source: Toronto Auto Theft Open Data") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+## Shiny Web App: Toronto Auto Theft Data Explorer
+
+Shiny Web App is available at: https://79muet-heyucheng-zhang.shinyapps.io/Toronto-Auto-Theft-Data-Explorer/
+
+In our study, we developed a Shiny web application to enable dynamic exploration of auto theft data across Toronto. This application allows users to interactively select specific years—from 2014 to 2023—or view aggregated data for all years. Upon selection, the user interface updates to display relevant data in two main formats:
+
+-   Table View: This tab displays a table of the auto theft incidents corresponding to the selected year or the entire period. It presents raw data including detailed attributes such as date, location, and other pertinent information, allowing users to gain an in-depth look at the specifics of each incident.
+
+-   Map View: The second tab features an interactive map rendered using Leaflet[@leaflet], which highlights the geographical distribution of auto theft incidents. Markers on the map indicate the locations of thefts, with their placement based on the longitude and latitude coordinates from the data. This map provides a visual representation of theft hotspots and trends, enhancing understanding of the spatial dynamics of auto theft in Toronto.
+
+This Shiny application not only provides a hands-on approach for users to interact with the data but also serves as a practical tool for enhancing public understanding and engagement with the data. By allowing users to select specific years and observe the corresponding data and maps, the application encourages deeper exploration and understanding of the patterns and trends in auto theft across Toronto.
+
+
+## Model Summary and 90% Credibility Interval
+
+@fig-linear-regression encapsulates the results of our model, displaying the correlation between time and the number of thefts. The blue data points represent actual theft counts, while the red line indicates the fitted model's predictions. The close alignment of the model with the observed data points indicates a strong linear relationship, reinforcing the model's applicability in predicting future trends.
+
+```{r fig.width=10, fig.height=5}
+#| echo: false
+#| message: false
+#| warning: false
+#| label: fig-linear-regression
+#| fig-cap: Linear Regression of Monthly Thefts
+
+monthly_counts$Time_Index <- 1:nrow(monthly_counts)
+augmented_data <- augment(model, monthly_counts)
+
+ggplot(augmented_data, aes(x = Time_Index, y = Thefts)) +
+  geom_point(aes(color = "Data Points"), size = 3, alpha = 0.6) +  
+  geom_line(aes(y = .fitted, color = "Fitted Line"), size = 1.2) +
+  labs(title = "Linear Regression of Monthly Thefts",
+       subtitle = "Trend of thefts over time with fitted linear model",
+       x = "Time Index",
+       y = "Number of Thefts",
+       color = "Legend") +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "bottom", 
+        legend.title = element_blank(),
+        plot.title = element_text(face = "bold"),
+        plot.subtitle = element_text(face = "italic"),
+        plot.caption = element_text(size = 10)) +
+  scale_color_manual(values = c("Data Points" = "#1f77b4", "Fitted Line" = "#d62728")) 
+
+```
+
+In addition to the spatial and temporal trends observed, our quantitative analysis includes a linear regression model, depicted in @tbl-modelresults, which delineates the relationship between time and auto theft counts. The model estimates an intercept of 110.24, indicating the starting point of our time index, with a slope coefficient of 6.25. This suggests that, on average, the number of auto thefts increased by approximately 6.25 for each additional time index increment, a proxy for time passage in our dataset.
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| label: tbl-modelresults
+#| tbl-cap: "Explanatory models of Auto Thefts Counts based on Time Index"
+
+modelsummary::modelsummary(
+  list(
+    "Auto Thefts Counts" = model
+  ),
+  fmt = 2
+)
+
+```
+
+The robustness of the model is reflected in the R-squared value of 0.771, indicating that approximately 77.1% of the variability in monthly theft counts is explained by the time index. The adjusted R-squared of 0.769 accounts for the number of predictors in the model, maintaining a similar level of explained variability, which indicates a good fit. The model's predictive capability is supported by a reasonable Root Mean Square Error (RMSE) of 121.10, suggesting that the typical prediction error of the number of thefts is within this range. The model's coefficients, including the standard errors in parentheses, provide insight into the precision of the estimates, with smaller standard errors indicating more precise estimates.
+
+@fig-modelresults-credibility-interval offers a detailed look at the explanatory power of our model through a graphical representation of the 90% credibility interval around the coefficients for the time index and the intercept. This interval visualization aids in understanding the degree of certainty in our model's estimates and its reliability in extrapolating future incidents.
+
+```{r fig.width=3, fig.height=1.5}
+#| echo: false
+#| message: false
+#| warning: false
+#| label: fig-modelresults-credibility-interval
+#| fig-cap: "Explanatory models of Auto Theft Counts based on Time Index: 90% Credibility Interval"
+
+modelplot(model, conf_level = 0.9) +
+  labs(x = "90 per cent credibility interval")
+```
+
+Together with the geographical and temporal analysis previously discussed, this regression model is an essential tool for understanding the dynamics of auto theft incidents and anticipating future trends. It provides a statistical foundation for estimating the occurrence of thefts over time, offering insightful information to law enforcement and politicians entrusted with reducing these crimes.
+
+# Discussion
+
+## Analyze Another Surge
+
+In an extension of our analysis on the auto theft trends in Toronto, we analyzed the most recent and pronounced increase in incidents during the years 2022 and 2023. @fig-year2223 labeled "Monthly Auto Thefts Counts for 2022 and 2023" provides a focused examination of these two years, highlighting the monthly theft counts and revealing a comparative perspective between them. The visualization captures the ebb and flow of auto theft incidents throughout each month for both years, presented side by side for direct comparison. In 2022, represented by the color green, we see a pattern that suggests a certain seasonality to the thefts, with some months peaking higher than others. The year 2023, denoted by the color orange, shows not only a continuation of this pattern but also an elevated count of thefts across all months.
+
+```{r fig.width=10, fig.height=5}
+#| echo: false
+#| message: false
+#| warning: false
+#| label: fig-year2223
+#| fig-cap: Monthly Auto Thefts Counts for 2022 and 2023
+
+year2223_monthly_counts <- monthly_counts |>
+  filter(REPORT_YEAR %in% c(2022, 2023)) |>
+  mutate(Month = factor(Month, levels = month.name)) 
+
+ggplot(year2223_monthly_counts, aes(x = Month, y = Thefts, group = REPORT_YEAR, color = as.factor(REPORT_YEAR))) +
+  geom_line(size = 1) + 
+  geom_point(size = 3, shape = 21, fill = "white") +
+  facet_wrap(~ REPORT_YEAR, scales = "free_x") +
+  scale_color_manual(values = c("2022" = "#1b9e78", "2023" = "#FF7F50"), name = "Year") +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+        plot.margin = margin(10, 10, 10, 10),
+        panel.grid.major = element_line(color = "gray85", size = 0.5),
+        panel.grid.minor = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        strip.text = element_text(size = 16, face = "bold")) +
+  labs(title = "Monthly Auto Thefts Counts for 2022 and 2023",
+       subtitle = "Auto theft incidents reported per month.",
+       x = "Month",
+       y = "Number of Thefts",
+       caption = "Source: Toronto Auto Theft Open Data") +
+  guides(color = guide_legend(override.aes = list(size = 6)))
+
+
+```
+
+By employing line and point geoms, the graph offers a clear view of the theft counts' trajectory, with lines connecting the monthly data points that accentuate the trend over time. The points, with their white fill, draw attention to the actual data, allowing for each month to stand out within the annual trend. The facet wrap segregates the years, facilitating a focused analysis of each year's pattern without the visual complexity that might arise from overlapping data series. This detailed month-by-month breakdown underscores the acceleration in auto theft incidents during 2022 and 2023 and signals potential underlying factors that may be contributing to this uptrend. Such granular insights are crucial for devising timely and effective preventative strategies, allowing stakeholders to adapt to and address the evolving landscape of auto theft in Toronto.
+
+## Insights on Auto Theft Trends
+
+Through spatial analysis, we learned that urban crime, particularly auto theft, is not randomly distributed but is concentrated in specific neighborhoods. One of the key findings of our study is the identification of hotspots for auto thefts, such as West Humber-Clairville, which could signify areas where preventive measures could be intensified. This suggests a spatial component to crime that may be influenced by factors such as population density, urban design, and socio-economic variables. Our study's spatial visualizations can help guide targeted law enforcement and community interventions. The upward trend in theft incidents over the years indicates not only the growing concern of auto theft in the city but also possibly reflects broader socioeconomic trends that could be influencing crime rates.
+
+The linear regression model's prediction of thefts increasing over time calls attention to the potential for these trends to continue if interventions are not effectively implemented. This trend underscores the need for continuous monitoring and adaptive strategies in policing and community programs to address and prevent auto thefts effectively.
+
+## Overview and Review
+
+In our extensive study, we explored the intricate landscape of auto theft incidents in Toronto, meticulously analyzing data collected over several years. By employing sophisticated statistical methodologies and geospatial analysis, we have been able to provide a nuanced depiction of the patterns and fluctuations in auto theft across various neighborhoods and time periods. Utilizing R's robust statistical environment and leveraging the accessibility of public data sources, our research underscores the powerful role that data analysis plays in shaping informed public policy and enhancing community safety measures.
+
+Our findings have led us to identify neighborhoods with the highest rates of auto theft, a crucial step in understanding the geographical distribution of this criminal activity. Furthermore, by forecasting future auto theft occurrences through our predictive models, we have laid the groundwork for law enforcement and policymakers to develop targeted strategies aimed at preventing and reducing crime. These predictive insights offer a proactive approach, allowing for the allocation of resources and the implementation of security measures in anticipation of potential theft hotspots.
+
+By bridging data-driven insights with public safety objectives, our study acts as a testament to the potential of open data in facilitating impactful societal changes. As a result of our analyses, authorities are equipped with actionable intelligence to institute measures that not only prevent auto theft but also address its root causes, ultimately fostering safer communities throughout Toronto.
+
+## Limitations and Weaknesses
+
+Our study has provided valuable insights into the patterns of auto theft within Toronto, leveraging robust statistical methods and comprehensive data analysis. However, we must acknowledge the inherent limitations that accompany our study. Our reliance on officially reported data inherently presents a challenge, as it is well-established in criminology that not all crimes are captured in police datasets. While our model provides a statistically significant fit for the data, it does not encapsulate the complexity of external influences that may drive variations in auto theft rates. Potential confounding factors such as economic fluctuations, unemployment rates, and demographic changes are not accounted for, which could offer additional explanatory power if included. For instance, economic downturns may increase criminal activity due to heightened financial pressures, or shifts in police resource allocation could inadvertently impact theft rates.
+
+Another limitation is our model's RMSE, which, although reasonable, highlights the potential for improved accuracy. This measure of prediction error suggests that our model, while useful, could benefit from further refinement. Future research endeavors could look to incorporate broader datasets, potentially including real-time economic indicators, sociodemographic profiles, vehicle security features, and even weather patterns, which could all have a bearing on auto theft occurrences. By integrating these additional layers of data, future models could provide a more nuanced and precise understanding of the predictors of auto theft, thus offering stronger predictive capabilities. Enhanced models could then serve as a more reliable tool for policy recommendations, allowing for proactive and targeted crime prevention strategies that are tailored to address the multifactorial nature of auto theft.
+
+## Future Exploration
+
+As we look to the future, our research serves as a foundation for a more nuanced understanding of auto theft in urban environments. We plan to expand our analysis to include the methods used in these thefts, which will involve cataloging the various techniques thieves employ to steal vehicles. This will enable us to identify patterns in the methodologies of auto theft, which could be critical in developing preventative measures. The exploration of auto theft methods will include the collection and statistical analysis of incident reports, with particular attention to the details of each crime. This analysis is expected to yield valuable insights that could inform law enforcement strategies, leading to targeted interventions that address the most prevalent theft techniques.
+
+Through our continued research, we aim to contribute actionable recommendations to the police and policymakers. By understanding how cars are stolen, strategies can be refined to anticipate and mitigate these methods. For example, if a specific technology is found to be frequently exploited, our research could lead to recommendations for vehicle security enhancements or public awareness campaigns focused on the vulnerabilities. Furthermore, we anticipate that our future studies will combine these quantitative analyses with qualitative research. Interviews with law enforcement officials, crime prevention experts, and victims of auto theft could provide additional context to the statistical patterns we observe. These narratives will enrich our understanding of the data and could uncover aspects of auto theft that are not immediately apparent through numbers alone.
+
+In closing, while our current study has illuminated the patterns and trends of auto theft incidents in Toronto, it is just the beginning of a more comprehensive approach to combating this type of urban crime. Our commitment to ongoing data collection, innovative analysis, and the fusion of quantitative and qualitative research methodologies is poised to deliver impactful insights. These efforts will be instrumental in crafting sophisticated, evidence-based crime prevention strategies that can significantly reduce the incidence of auto theft.
 
 # References
-
-
